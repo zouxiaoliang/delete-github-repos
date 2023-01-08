@@ -17,7 +17,7 @@ impl SHellContext {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define a shell
     let mut shell = Shell::new(SHellContext::new(), "> ");
-
+    shell.description = "delete your useless github repository:".to_string();
     // Add some command
     shell.commands.insert("login", Command::new("login {token}".to_string(), login));
     shell.commands.insert("delete", Command::new("delete github repos".to_string(), delete_repos));
@@ -111,7 +111,49 @@ fn list_repos(context: &mut SHellContext, args: Vec<String>) -> Result<(), Box<d
     Ok(())
 }
 
-fn list_stars(_context: &mut SHellContext, _args: Vec<String>) -> Result<(), Box<dyn Error>> {
+fn list_stars(context: &mut SHellContext, args: Vec<String>) -> Result<(), Box<dyn Error>> {
+    if !context.login {
+        return Ok(());
+    }
+    if args.is_empty() {}
+    let feature = async {
+        let mut i = 0;
+        loop {
+            let repos = context
+                .accont
+                .as_mut()
+                .unwrap()
+                .current()
+                .list_repos_starred_by_authenticated_user()
+                .page(i)
+                .send()
+                .await;
+
+            if let Err(msg) = repos {
+                println!("get repos failed, what: {}", msg);
+                break;
+            }
+
+            let mut repos = repos.unwrap();
+            let items = repos.take_items();
+            if items.is_empty() {
+                break;
+            }
+
+            for repo in items {
+                println!(
+                    " -- name: {}, fork: {}, private: {}, star: {}",
+                    repo.name,
+                    repo.fork.unwrap(),
+                    repo.private.unwrap(),
+                    repo.stargazers_count.unwrap()
+                );
+            }
+            i += 1;
+        }
+    };
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(feature);
+
     Ok(())
 }
 
